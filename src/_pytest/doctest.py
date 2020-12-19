@@ -526,7 +526,9 @@ class DoctestModule(pytest.Module):
 
         if self.fspath.basename == "conftest.py":
             module = self.config.pluginmanager._importconftest(
-                Path(self.fspath), self.config.getoption("importmode"),rootpath=self.config.rootpath
+                Path(self.fspath),
+                self.config.getoption("importmode"),
+                rootpath=self.config.rootpath,
             )
         else:
             try:
