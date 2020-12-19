@@ -148,66 +148,66 @@ class TestImportPath:
         )
 
     def test_smoke_test(self, path1):
-        obj = import_path(path1.join("execfile.py"))
+        obj = import_path(path1.join("execfile.py"), root=Path(path1))
         assert obj.x == 42  # type: ignore[attr-defined]
         assert obj.__name__ == "execfile"
 
     def test_renamed_dir_creates_mismatch(self, tmpdir, monkeypatch):
         p = tmpdir.ensure("a", "test_x123.py")
-        import_path(p)
+        import_path(p, root=Path(tmpdir))
         tmpdir.join("a").move(tmpdir.join("b"))
         with pytest.raises(ImportPathMismatchError):
-            import_path(tmpdir.join("b", "test_x123.py"))
+            import_path(tmpdir.join("b", "test_x123.py"), root=Path(tmpdir))
 
         # Errors can be ignored.
         monkeypatch.setenv("PY_IGNORE_IMPORTMISMATCH", "1")
-        import_path(tmpdir.join("b", "test_x123.py"))
+        import_path(tmpdir.join("b", "test_x123.py"), root=Path(tmpdir))
 
         # PY_IGNORE_IMPORTMISMATCH=0 does not ignore error.
         monkeypatch.setenv("PY_IGNORE_IMPORTMISMATCH", "0")
         with pytest.raises(ImportPathMismatchError):
-            import_path(tmpdir.join("b", "test_x123.py"))
+            import_path(tmpdir.join("b", "test_x123.py"), root=Path(tmpdir))
 
     def test_messy_name(self, tmpdir):
         # http://bitbucket.org/hpk42/py-trunk/issue/129
         path = tmpdir.ensure("foo__init__.py")
-        module = import_path(path)
+        module = import_path(path, root=Path(tmpdir))
         assert module.__name__ == "foo__init__"
 
     def test_dir(self, tmpdir):
         p = tmpdir.join("hello_123")
         p_init = p.ensure("__init__.py")
-        m = import_path(p)
+        m = import_path(p, root=Path(tmpdir))
         assert m.__name__ == "hello_123"
-        m = import_path(p_init)
+        m = import_path(p_init, root=Path(tmpdir))
         assert m.__name__ == "hello_123"
 
     def test_a(self, path1):
         otherdir = path1.join("otherdir")
-        mod = import_path(otherdir.join("a.py"))
+        mod = import_path(otherdir.join("a.py"), root=Path(path1))
         assert mod.result == "got it"  # type: ignore[attr-defined]
         assert mod.__name__ == "otherdir.a"
 
     def test_b(self, path1):
         otherdir = path1.join("otherdir")
-        mod = import_path(otherdir.join("b.py"))
+        mod = import_path(otherdir.join("b.py"), root=Path(path1))
         assert mod.stuff == "got it"  # type: ignore[attr-defined]
         assert mod.__name__ == "otherdir.b"
 
     def test_c(self, path1):
         otherdir = path1.join("otherdir")
-        mod = import_path(otherdir.join("c.py"))
+        mod = import_path(otherdir.join("c.py"), root=Path(path1))
         assert mod.value == "got it"  # type: ignore[attr-defined]
 
     def test_d(self, path1):
         otherdir = path1.join("otherdir")
-        mod = import_path(otherdir.join("d.py"))
+        mod = import_path(otherdir.join("d.py"), root=Path(path1))
         assert mod.value2 == "got it"  # type: ignore[attr-defined]
 
     def test_import_after(self, tmpdir):
         tmpdir.ensure("xxxpackage", "__init__.py")
         mod1path = tmpdir.ensure("xxxpackage", "module1.py")
-        mod1 = import_path(mod1path)
+        mod1 = import_path(mod1path, root=Path(tmpdir))
         assert mod1.__name__ == "xxxpackage.module1"
         from xxxpackage import module1
 
@@ -222,7 +222,7 @@ class TestImportPath:
             pseudopath = tmpdir.ensure(name + ending)
             mod.__file__ = str(pseudopath)
             monkeypatch.setitem(sys.modules, name, mod)
-            newmod = import_path(p)
+            newmod = import_path(p, root=Path(tmpdir))
             assert mod == newmod
         monkeypatch.undo()
         mod = ModuleType(name)
@@ -230,7 +230,7 @@ class TestImportPath:
         mod.__file__ = str(pseudopath)
         monkeypatch.setitem(sys.modules, name, mod)
         with pytest.raises(ImportPathMismatchError) as excinfo:
-            import_path(p)
+            import_path(p, root=Path(tmpdir))
         modname, modfile, orig = excinfo.value.args
         assert modname == name
         assert modfile == pseudopath
@@ -243,25 +243,26 @@ class TestImportPath:
         # see issue
         p1 = tmpdir.ensure("proja", "__init__.py")
         p2 = tmpdir.ensure("sub", "proja", "__init__.py")
-        m1 = import_path(p1)
-        m2 = import_path(p2)
+        m1 = import_path(p1, root=Path(tmpdir))
+        m2 = import_path(p2, root=Path(tmpdir))
         assert m1 == m2
 
     def test_ensuresyspath_append(self, tmpdir):
         root1 = tmpdir.mkdir("root1")
         file1 = root1.ensure("x123.py")
         assert str(root1) not in sys.path
-        import_path(file1, mode="append")
+        import_path(file1, mode="append", root=Path(tmpdir))
         assert str(root1) == sys.path[-1]
         assert str(root1) not in sys.path[:-1]
 
     def test_invalid_path(self, tmpdir):
         with pytest.raises(ImportError):
-            import_path(tmpdir.join("invalid.py"))
+            import_path(tmpdir.join("invalid.py"), root=Path(tmpdir))
 
     @pytest.fixture
     def simple_module(self, tmpdir):
-        fn = tmpdir.join("mymod.py")
+        tmpdir.join("src/tests").ensure_dir()
+        fn = tmpdir.join("src/tests/mymod.py")
         fn.write(
             dedent(
                 """
@@ -271,22 +272,24 @@ class TestImportPath:
         )
         return fn
 
-    def test_importmode_importlib(self, simple_module):
+    def test_importmode_importlib(self, simple_module, tmpdir):
         """`importlib` mode does not change sys.path."""
-        module = import_path(simple_module, mode="importlib")
+        module = import_path(simple_module, mode="importlib", root=Path(tmpdir))
         assert module.foo(2) == 42  # type: ignore[attr-defined]
         assert simple_module.dirname not in sys.path
+        assert module.__name__ in sys.modules
+        assert module.__name__ == "src.tests.mymod"
 
-    def test_importmode_twice_is_different_module(self, simple_module):
+    def test_importmode_twice_is_different_module(self, simple_module, tmpdir):
         """`importlib` mode always returns a new module."""
-        module1 = import_path(simple_module, mode="importlib")
-        module2 = import_path(simple_module, mode="importlib")
+        module1 = import_path(simple_module, mode="importlib", root=Path(tmpdir))
+        module2 = import_path(simple_module, mode="importlib", root=Path(tmpdir))
         assert module1 is not module2
 
-    def test_no_meta_path_found(self, simple_module, monkeypatch):
+    def test_no_meta_path_found(self, simple_module, monkeypatch, tmpdir):
         """Even without any meta_path should still import module."""
         monkeypatch.setattr(sys, "meta_path", [])
-        module = import_path(simple_module, mode="importlib")
+        module = import_path(simple_module, mode="importlib", root=Path(tmpdir))
         assert module.foo(2) == 42  # type: ignore[attr-defined]
 
         # mode='importlib' fails if no spec is found to load the module
@@ -296,7 +299,7 @@ class TestImportPath:
             importlib.util, "spec_from_file_location", lambda *args: None
         )
         with pytest.raises(ImportError):
-            import_path(simple_module, mode="importlib")
+            import_path(simple_module, mode="importlib", root=Path(tmpdir))
 
 
 def test_resolve_package_path(tmp_path):
@@ -439,7 +442,8 @@ def test_samefile_false_negatives(tmp_path: Path, monkeypatch: MonkeyPatch) -> N
 
 @pytest.fixture
 def module_with_dataclass(tmpdir):
-    fn = tmpdir.join("test_dataclass.py")
+    tmpdir.join("src/tests").ensure_dir()
+    fn = tmpdir.join("src/tests/test_dataclass.py")
     fn.write(
         dedent(
             f"""
@@ -461,7 +465,8 @@ def module_with_dataclass(tmpdir):
 
 @pytest.fixture
 def module_with_pickle(tmpdir):
-    fn = tmpdir.join("test_dataclass.py")
+    tmpdir.join("src/tests").ensure_dir()
+    fn = tmpdir.join("src/tests/test_pickle.py")
     fn.write(
         dedent(
             """
@@ -479,13 +484,13 @@ def module_with_pickle(tmpdir):
 
 
 @pytest.mark.skipif(sys.version_info < (3, 7), reason="Dataclasses in Python3.7+")
-def test_importmode_importlib_with_dataclass(module_with_dataclass):
+def test_importmode_importlib_with_dataclass(module_with_dataclass, tmpdir):
     """Ensure that importlib mode works with a module containing dataclasses"""
-    module = import_path(module_with_dataclass, mode="importlib")
+    module = import_path(module_with_dataclass, mode="importlib", root=Path(tmpdir))
     module.test_dataclass()  # type: ignore[attr-defined]
 
 
-def test_importmode_importlib_with_pickle(module_with_pickle):
+def test_importmode_importlib_with_pickle(module_with_pickle, tmpdir):
     """Ensure that importlib mode works with pickle"""
-    module = import_path(module_with_pickle, mode="importlib")
+    module = import_path(module_with_pickle, mode="importlib", root=Path(tmpdir))
     module.test_pickle()  # type: ignore[attr-defined]

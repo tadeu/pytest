@@ -372,7 +372,7 @@ def _in_venv(path: py.path.local) -> bool:
 
 def pytest_ignore_collect(path: py.path.local, config: Config) -> Optional[bool]:
     path_ = Path(path)
-    ignore_paths = config._getconftest_pathlist("collect_ignore", path=path_.parent)
+    ignore_paths = config._getconftest_pathlist("collect_ignore", path=path_.parent, rootpath=config.rootpath)
     ignore_paths = ignore_paths or []
     excludeopt = config.getoption("ignore")
     if excludeopt:
@@ -382,7 +382,7 @@ def pytest_ignore_collect(path: py.path.local, config: Config) -> Optional[bool]
         return True
 
     ignore_globs = config._getconftest_pathlist(
-        "collect_ignore_glob", path=path_.parent
+        "collect_ignore_glob", path=path_.parent, rootpath=config.rootpath
     )
     ignore_globs = ignore_globs or []
     excludeglobopt = config.getoption("ignore_glob")
@@ -518,7 +518,7 @@ class Session(nodes.FSCollector):
         # hooks with all conftest.py files.
         pm = self.config.pluginmanager
         my_conftestmodules = pm._getconftestmodules(
-            Path(fspath), self.config.getoption("importmode")
+            Path(fspath), self.config.getoption("importmode"), rootpath=self.config.rootpath
         )
         remove_mods = pm._conftest_plugins.difference(my_conftestmodules)
         if remove_mods:

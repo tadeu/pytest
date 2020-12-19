@@ -578,7 +578,7 @@ class Module(nodes.File, PyCollector):
         # We assume we are only called once per module.
         importmode = self.config.getoption("--import-mode")
         try:
-            mod = import_path(self.fspath, mode=importmode)
+            mod = import_path(self.fspath, mode=importmode, root=self.config.rootpath)
         except SyntaxError as e:
             raise self.CollectError(
                 ExceptionInfo.from_current().getrepr(style="short")
